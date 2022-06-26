@@ -10,7 +10,7 @@ from ._types import PrimitiveData, QueryParamTypes, URLTypes
 from ._utils import primitive_value_to_str
 
 
-class URL:
+class URL(str):
     """
     url = httpx.URL("HTTPS://jo%40email.com:a%20secret@müller.de:1234/pa%20th?search=ab#anchorlink")
 
@@ -70,10 +70,19 @@ class URL:
       be properly URL escaped when decoding the parameter names and values themselves.
     """
 
-    def __init__(
+    _uri_reference: rfc3986.URIReference
+
+    def __new__(cls, url: typing.Union["URL", str] = "", **kwargs: typing.Any) -> "URL":
+        self = str.__new__(cls, url)
+        self.__initialize__(url, **kwargs)
+        return self
+
+    def __initialize__(
         self, url: typing.Union["URL", str] = "", **kwargs: typing.Any
     ) -> None:
-        if isinstance(url, str):
+        if isinstance(url, URL):
+            self._uri_reference = url._uri_reference
+        elif isinstance(url, str):
             try:
                 self._uri_reference = rfc3986.iri_reference(url).encode()
             except rfc3986.exceptions.InvalidAuthority as exc:
@@ -83,8 +92,6 @@ class URL:
                 # We don't want to normalize relative URLs, since doing so
                 # removes any leading `../` portion.
                 self._uri_reference = self._uri_reference.normalize()
-        elif isinstance(url, URL):
-            self._uri_reference = url._uri_reference
         else:
             raise TypeError(
                 f"Invalid type for url.  Expected str or httpx.URL, got {type(url)}: {url!r}"
@@ -474,7 +481,7 @@ class URL:
     def copy_merge_params(self, params: QueryParamTypes) -> "URL":
         return self.copy_with(params=self.params.merge(params))
 
-    def join(self, url: URLTypes) -> "URL":
+    def join(self, url: URLTypes) -> "URL":  # type: ignore
         """
         Return an absolute URL, using this URL as the base.
 
